@@ -18,5 +18,8 @@ class Settings(BaseSettings):
     AWS_STORAGE_BUCKET_NAME: str = "interview-stack-audio"
     AWS_S3_ENDPOINT_URL: str | None = None
 
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+
 
 settings = Settings()

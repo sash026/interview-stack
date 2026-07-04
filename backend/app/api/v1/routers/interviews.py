@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.interview import InputType, Interview, InterviewStatus
 from app.schemas.interview import InterviewUploadResponse
 from app.services import storage
+from app.tasks.transcription import transcribe_interview_task
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,8 @@ async def upload_interview(
     db.commit()
     db.refresh(interview)
 
-    # TODO: enqueue a Celery task for transcription/processing once that
-    # pipeline exists.
+    transcribe_interview_task.delay(str(interview.id))
+
     return InterviewUploadResponse(
         id=str(interview.id),
         title=interview.title,
