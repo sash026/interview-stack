@@ -9,8 +9,13 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.interview import InputType, Interview, InterviewStatus
-from app.schemas.interview import InterviewUploadResponse
-from app.services import storage
+from app.schemas.interview import (
+    InterviewDetailResponse,
+    InterviewStatusResponse,
+    InterviewUploadResponse,
+    TranscriptResponse,
+)
+from app.services import interview_service, storage
 from app.tasks.transcription import transcribe_interview_task
 
 logger = logging.getLogger(__name__)
@@ -96,7 +101,7 @@ async def upload_interview(
     interview = Interview(
         id=interview_id,
         title=title,
-        status=InterviewStatus.PENDING,
+        status=InterviewStatus.UPLOADED,
         input_type=InputType.AUDIO if has_audio else InputType.NOTES,
         raw_notes_text=notes if has_notes else None,
         audio_s3_key=audio_s3_key,
@@ -106,6 +111,7 @@ async def upload_interview(
     db.commit()
     db.refresh(interview)
 
+    logger.info("Interview queued: id=%s", interview.id)
     transcribe_interview_task.delay(str(interview.id))
 
     return InterviewUploadResponse(
@@ -114,4 +120,78 @@ async def upload_interview(
         status=interview.status.value,
         has_audio=has_audio,
         has_notes=has_notes,
+    )
+
+
+def _get_interview_or_404(db: Session, interview_id: uuid.UUID) -> Interview:
+    interview = interview_service.get_interview(db, interview_id)
+    if interview is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Interview {interview_id} not found.",
+        )
+    return interview
+
+
+@router.get("/{interview_id}", response_model=InterviewDetailResponse)
+async def get_interview(
+    interview_id: uuid.UUID, db: Session = Depends(get_db)
+) -> InterviewDetailResponse:
+    interview = _get_interview_or_404(db, interview_id)
+
+    transcript = None
+    if interview.transcript is not None:
+        transcript = TranscriptResponse(
+            raw_text=interview.transcript.raw_text,
+            created_at=interview.transcript.created_at,
+            updated_at=interview.transcript.updated_at,
+        )
+
+    return InterviewDetailResponse(
+        id=str(interview.id),
+        title=interview.title,
+        status=interview.status.value,
+        input_type=interview.input_type.value,
+        failure_reason=interview.failure_reason,
+        transcript=transcript,
+        created_at=interview.created_at,
+        updated_at=interview.updated_at,
+    )
+
+
+@router.get("/{interview_id}/status", response_model=InterviewStatusResponse)
+async def get_interview_status(
+    interview_id: uuid.UUID, db: Session = Depends(get_db)
+) -> InterviewStatusResponse:
+    interview = _get_interview_or_404(db, interview_id)
+    return InterviewStatusResponse(
+        id=str(interview.id),
+        status=interview.status.value,
+        failure_reason=interview.failure_reason,
+    )
+
+
+@router.post("/{interview_id}/retry", response_model=InterviewStatusResponse)
+async def retry_interview(
+    interview_id: uuid.UUID, db: Session = Depends(get_db)
+) -> InterviewStatusResponse:
+    interview = _get_interview_or_404(db, interview_id)
+
+    if interview.status != InterviewStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Interview {interview_id} is not in a failed state "
+                f"(current: {interview.status.value})."
+            ),
+        )
+
+    interview_service.reset_for_retry(db, interview)
+    logger.info("Interview requeued: id=%s", interview.id)
+    transcribe_interview_task.delay(str(interview.id))
+
+    return InterviewStatusResponse(
+        id=str(interview.id),
+        status=interview.status.value,
+        failure_reason=interview.failure_reason,
     )

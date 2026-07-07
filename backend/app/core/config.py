@@ -21,5 +21,11 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
 
+    # Selects the TranscriptionProvider implementation (see
+    # app/services/transcription_service.py). "mock" is the only
+    # implementation today; add new ones and extend the factory to support
+    # real providers (e.g. "openai_whisper").
+    TRANSCRIPTION_PROVIDER: str = "mock"
+
 
 settings = Settings()

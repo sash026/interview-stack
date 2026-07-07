@@ -1,10 +1,14 @@
 import logging
+import os
+import tempfile
 from typing import BinaryIO
 
 import boto3
 from botocore.client import BaseClient
+from botocore.exceptions import ClientError
 
 from app.core.config import settings
+from app.services.exceptions import AudioNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +66,38 @@ def generate_presigned_view_url(
         Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": key},
         ExpiresIn=expires_in,
     )
+
+
+def download_to_tempfile(key: str) -> str:
+    """Download an S3 object to a local temp file and return its path.
+
+    Streams straight to disk via boto3's managed transfer rather than
+    buffering the whole object in memory, so this is safe for large audio
+    files. The caller owns the returned path and must remove it when done.
+    """
+    suffix = os.path.splitext(key)[1]
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+
+    if not settings.AWS_ACCESS_KEY_ID:
+        logger.warning(
+            "AWS credentials not configured; mocking S3 download for key=%s", key
+        )
+        with open(path, "wb") as mock_file:
+            mock_file.write(f"[mock audio bytes for {key}]".encode())
+        return path
+
+    client = _get_s3_client()
+    try:
+        client.download_file(settings.AWS_STORAGE_BUCKET_NAME, key, path)
+    except ClientError as exc:
+        os.remove(path)
+        error_code = exc.response.get("Error", {}).get("Code")
+        if error_code in ("404", "NoSuchKey"):
+            raise AudioNotFoundError(f"Audio object not found in S3: {key}") from exc
+        raise
+
+    logger.info(
+        "Downloaded object from s3://%s/%s", settings.AWS_STORAGE_BUCKET_NAME, key
+    )
+    return path

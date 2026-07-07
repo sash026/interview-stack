@@ -10,8 +10,7 @@ from app.db.base import Base
 
 
 class InterviewStatus(str, enum.Enum):
-    PENDING = "pending"
-    TRANSCRIBING = "transcribing"
+    UPLOADED = "uploaded"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -36,7 +35,7 @@ class Interview(Base):
             values_callable=lambda enum_cls: [member.value for member in enum_cls],
         ),
         nullable=False,
-        default=InterviewStatus.PENDING,
+        default=InterviewStatus.UPLOADED,
     )
     input_type: Mapped[InputType] = mapped_column(
         Enum(
@@ -49,6 +48,7 @@ class Interview(Base):
     raw_notes_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     audio_s3_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     audio_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
