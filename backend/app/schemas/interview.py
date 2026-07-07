@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.schemas.insight import InsightResponse
+
 
 class InterviewUploadResponse(BaseModel):
     id: str
@@ -30,5 +32,6 @@ class InterviewDetailResponse(BaseModel):
     input_type: str
     failure_reason: str | None = None
     transcript: TranscriptResponse | None = None
+    insights: InsightResponse | None = None
     created_at: datetime
     updated_at: datetime

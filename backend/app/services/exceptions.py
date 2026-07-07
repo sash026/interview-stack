@@ -4,3 +4,8 @@ class AudioNotFoundError(Exception):
 
 class TranscriptionError(Exception):
     """Raised when a TranscriptionProvider fails to produce a transcript."""
+
+
+class InsightExtractionError(Exception):
+    """Raised when an AIProvider fails to produce insights, or its output
+    fails validation against the expected structured schema."""

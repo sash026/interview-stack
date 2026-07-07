@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.interview import InputType, Interview, InterviewStatus
+from app.schemas.insight import InsightResponse, PainPointResponse
 from app.schemas.interview import (
     InterviewDetailResponse,
     InterviewStatusResponse,
@@ -147,6 +148,24 @@ async def get_interview(
             updated_at=interview.transcript.updated_at,
         )
 
+    insights = None
+    if interview.insight is not None:
+        insights = InsightResponse(
+            summary=interview.insight.summary,
+            pain_points=[
+                PainPointResponse(category=pp.category.value, description=pp.description)
+                for pp in interview.insight.pain_points
+            ],
+            feature_requests=interview.insight.feature_requests,
+            competitors=interview.insight.competitors,
+            customer_sentiment=interview.insight.customer_sentiment.value,
+            customer_type=interview.insight.customer_type,
+            action_items=interview.insight.action_items,
+            notable_quotes=interview.insight.notable_quotes,
+            created_at=interview.insight.created_at,
+            updated_at=interview.insight.updated_at,
+        )
+
     return InterviewDetailResponse(
         id=str(interview.id),
         title=interview.title,
@@ -154,6 +173,7 @@ async def get_interview(
         input_type=interview.input_type.value,
         failure_reason=interview.failure_reason,
         transcript=transcript,
+        insights=insights,
         created_at=interview.created_at,
         updated_at=interview.updated_at,
     )

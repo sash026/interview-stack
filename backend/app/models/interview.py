@@ -1,12 +1,16 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.insight import Insight
 
 
 class InterviewStatus(str, enum.Enum):
@@ -60,6 +64,11 @@ class Interview(Base):
     )
 
     transcript: Mapped["Transcript | None"] = relationship(
+        back_populates="interview",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    insight: Mapped["Insight | None"] = relationship(
         back_populates="interview",
         uselist=False,
         cascade="all, delete-orphan",

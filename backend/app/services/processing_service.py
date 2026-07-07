@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.models.interview import InputType
-from app.services import interview_service, storage, transcription_service
-from app.services.exceptions import AudioNotFoundError, TranscriptionError
+from app.services import ai_service, insight_service, interview_service, storage, transcription_service
+from app.services.exceptions import AudioNotFoundError, InsightExtractionError, TranscriptionError
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +15,10 @@ logger = logging.getLogger(__name__)
 def process_interview(interview_id: str) -> None:
     """Orchestrates async processing of a single interview: mark it
     processing, produce a transcript (downloading + transcribing audio, or
-    reusing notes as-is), save it, and mark completed. Any failure is
-    caught, logged, and persisted as a failure reason on the interview
-    rather than left to crash the worker silently.
+    reusing notes as-is), save it, extract structured AI insights from it,
+    save those, and mark completed. Any failure is caught, logged, and
+    persisted as a failure reason on the interview rather than left to
+    crash the worker silently.
     """
     db = SessionLocal()
     try:
@@ -50,12 +51,19 @@ def process_interview(interview_id: str) -> None:
             raw_text = interview.raw_notes_text or ""
 
         interview_service.save_transcript(db, interview, raw_text)
+
+        logger.info("Insight extraction started: interview=%s", interview_id)
+        extraction = ai_service.extract_insights(raw_text)
+        insight_service.save_insights(db, interview, extraction)
+        logger.info("Insight extraction completed: interview=%s", interview_id)
+
+        # Extension point: once embeddings are needed, generate one here
+        # (e.g. ai_service.generate_embedding(raw_text)) and persist it
+        # (e.g. via pgvector) before marking the interview completed.
+
         interview_service.mark_completed(db, interview)
 
-        # Extension point: AI extraction / embedding generation will run
-        # here once implemented, triggered off the freshly saved transcript.
-
-    except (AudioNotFoundError, TranscriptionError) as exc:
+    except (AudioNotFoundError, TranscriptionError, InsightExtractionError) as exc:
         logger.error("Processing failed for interview %s: %s", interview_id, exc)
         _mark_failed_safely(db, interview_id, str(exc))
         raise

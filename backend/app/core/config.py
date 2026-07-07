@@ -27,5 +27,14 @@ class Settings(BaseSettings):
     # real providers (e.g. "openai_whisper").
     TRANSCRIPTION_PROVIDER: str = "mock"
 
+    # Selects the AIProvider implementation (see app/services/ai_service.py).
+    # "mock" needs no credentials; "openai" requires OPENAI_API_KEY. Add new
+    # providers (Anthropic, Gemini, ...) by implementing AIProvider and
+    # registering them in ai_service._PROVIDERS.
+    AI_PROVIDER: str = "mock"
+    OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-5.5"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+
 
 settings = Settings()
