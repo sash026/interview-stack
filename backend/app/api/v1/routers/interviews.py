@@ -9,6 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.interview import InputType, Interview, InterviewStatus
+from app.schemas.embedding import SimilarInterviewsResponse
 from app.schemas.insight import InsightResponse, PainPointResponse
 from app.schemas.interview import (
     InterviewDetailResponse,
@@ -16,7 +17,8 @@ from app.schemas.interview import (
     InterviewUploadResponse,
     TranscriptResponse,
 )
-from app.services import interview_service, storage
+from app.services import embedding_service, interview_service, storage
+from app.services.exceptions import EmbeddingNotFoundError
 from app.tasks.transcription import transcribe_interview_task
 
 logger = logging.getLogger(__name__)
@@ -215,3 +217,21 @@ async def retry_interview(
         status=interview.status.value,
         failure_reason=interview.failure_reason,
     )
+
+
+@router.get("/{interview_id}/similar", response_model=SimilarInterviewsResponse)
+async def get_similar_interviews(
+    interview_id: uuid.UUID,
+    limit: int = 5,
+    db: Session = Depends(get_db),
+) -> SimilarInterviewsResponse:
+    _get_interview_or_404(db, interview_id)
+
+    try:
+        results = embedding_service.similar_interviews(db, interview_id, limit=limit)
+    except EmbeddingNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+
+    return SimilarInterviewsResponse(results=results)

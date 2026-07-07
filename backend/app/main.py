@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.routers import interviews
+from app.api.v1.routers import interviews, search
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(interviews.router, prefix=settings.API_V1_PREFIX)
+app.include_router(search.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/health")

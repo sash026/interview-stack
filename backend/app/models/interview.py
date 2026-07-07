@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.embedding import Embedding
     from app.models.insight import Insight
 
 
@@ -69,6 +70,11 @@ class Interview(Base):
         cascade="all, delete-orphan",
     )
     insight: Mapped["Insight | None"] = relationship(
+        back_populates="interview",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    embedding: Mapped["Embedding | None"] = relationship(
         back_populates="interview",
         uselist=False,
         cascade="all, delete-orphan",

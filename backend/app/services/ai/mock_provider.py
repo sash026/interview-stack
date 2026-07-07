@@ -1,11 +1,12 @@
+import hashlib
 import logging
+import math
 
+from app.core.config import settings
 from app.models.insight import CustomerSentiment, PainPointCategory
 from app.services.ai.base import AIProvider
 
 logger = logging.getLogger(__name__)
-
-_MOCK_EMBEDDING_DIMENSIONS = 8
 
 
 class MockAIProvider(AIProvider):
@@ -35,4 +36,17 @@ class MockAIProvider(AIProvider):
 
     def generate_embedding(self, text: str) -> list[float]:
         logger.info("Mock-generating embedding for text (%d chars)", len(text))
-        return [0.0] * _MOCK_EMBEDDING_DIMENSIONS
+        return _deterministic_unit_vector(text, settings.EMBEDDING_DIMENSIONS)
+
+
+def _deterministic_unit_vector(text: str, dimensions: int) -> list[float]:
+    """Derive a stable, non-zero unit vector from text via hashing. This is
+    not a real embedding - it carries no semantic meaning - but it lets
+    pgvector cosine-distance queries run correctly end-to-end without an
+    AI provider (a real all-zero vector, which a naive mock might return,
+    is invalid for cosine distance: the norm is zero)."""
+    digest = hashlib.sha256(text.encode("utf-8")).digest()
+    repeated = (digest * ((dimensions // len(digest)) + 1))[:dimensions]
+    raw = [(byte - 128) / 128 for byte in repeated]
+    norm = math.sqrt(sum(value * value for value in raw)) or 1.0
+    return [value / norm for value in raw]

@@ -36,5 +36,11 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5.5"
     OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
 
+    # Fixed dimensionality of the pgvector column in app/models/embedding.py.
+    # Must match whatever OPENAI_EMBEDDING_MODEL (or any other provider's
+    # embedding model) actually produces - text-embedding-3-small is 1536.
+    # Changing this requires a migration to alter the vector column.
+    EMBEDDING_DIMENSIONS: int = 1536
+
 
 settings = Settings()

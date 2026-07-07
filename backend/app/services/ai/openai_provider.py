@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.models.insight import PainPointCategory
 from app.schemas.insight import InsightsExtraction
 from app.services.ai.base import AIProvider
-from app.services.exceptions import InsightExtractionError
+from app.services.exceptions import EmbeddingGenerationError, InsightExtractionError
 
 logger = logging.getLogger(__name__)
 
@@ -64,5 +64,5 @@ class OpenAIProvider(AIProvider):
                 input=text,
             )
         except OpenAIError as exc:
-            raise InsightExtractionError(f"OpenAI embedding request failed: {exc}") from exc
+            raise EmbeddingGenerationError(f"OpenAI embedding request failed: {exc}") from exc
         return response.data[0].embedding

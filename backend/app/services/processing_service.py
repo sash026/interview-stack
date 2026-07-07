@@ -6,8 +6,20 @@ from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.models.interview import InputType
-from app.services import ai_service, insight_service, interview_service, storage, transcription_service
-from app.services.exceptions import AudioNotFoundError, InsightExtractionError, TranscriptionError
+from app.services import (
+    ai_service,
+    embedding_service,
+    insight_service,
+    interview_service,
+    storage,
+    transcription_service,
+)
+from app.services.exceptions import (
+    AudioNotFoundError,
+    EmbeddingGenerationError,
+    InsightExtractionError,
+    TranscriptionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +27,10 @@ logger = logging.getLogger(__name__)
 def process_interview(interview_id: str) -> None:
     """Orchestrates async processing of a single interview: mark it
     processing, produce a transcript (downloading + transcribing audio, or
-    reusing notes as-is), save it, extract structured AI insights from it,
-    save those, and mark completed. Any failure is caught, logged, and
-    persisted as a failure reason on the interview rather than left to
-    crash the worker silently.
+    reusing notes as-is), save it, extract structured AI insights, generate
+    and store an embedding, and mark completed. Any failure is caught,
+    logged, and persisted as a failure reason on the interview rather than
+    left to crash the worker silently.
     """
     db = SessionLocal()
     try:
@@ -57,13 +69,22 @@ def process_interview(interview_id: str) -> None:
         insight_service.save_insights(db, interview, extraction)
         logger.info("Insight extraction completed: interview=%s", interview_id)
 
-        # Extension point: once embeddings are needed, generate one here
-        # (e.g. ai_service.generate_embedding(raw_text)) and persist it
-        # (e.g. via pgvector) before marking the interview completed.
+        logger.info("Generating embedding: interview=%s", interview_id)
+        vector = embedding_service.generate_embedding(raw_text)
+        embedding_service.store_embedding(db, interview, vector)
+
+        # Extension point: chunked/multi-vector embeddings for long
+        # transcripts would slot in here too, alongside this single
+        # whole-transcript embedding.
 
         interview_service.mark_completed(db, interview)
 
-    except (AudioNotFoundError, TranscriptionError, InsightExtractionError) as exc:
+    except (
+        AudioNotFoundError,
+        TranscriptionError,
+        InsightExtractionError,
+        EmbeddingGenerationError,
+    ) as exc:
         logger.error("Processing failed for interview %s: %s", interview_id, exc)
         _mark_failed_safely(db, interview_id, str(exc))
         raise
