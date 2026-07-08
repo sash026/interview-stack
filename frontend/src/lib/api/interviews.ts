@@ -1,3 +1,5 @@
+import type { SemanticSearchResult } from "@/lib/api/search"
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -6,6 +8,28 @@ export type InterviewStatusValue =
   | "processing"
   | "completed"
   | "failed"
+
+export type InputTypeValue = "audio" | "notes"
+
+export const PAIN_POINT_CATEGORIES = [
+  "pricing",
+  "reporting",
+  "authentication",
+  "onboarding",
+  "integrations",
+  "performance",
+  "ux",
+  "documentation",
+  "analytics",
+  "security",
+  "collaboration",
+  "support",
+] as const
+
+export type PainPointCategory = (typeof PAIN_POINT_CATEGORIES)[number]
+
+export const SENTIMENTS = ["positive", "neutral", "negative", "mixed"] as const
+export type Sentiment = (typeof SENTIMENTS)[number]
 
 export interface UploadInterviewInput {
   title: string
@@ -33,15 +57,67 @@ export interface Transcript {
   updated_at: string
 }
 
+export interface PainPoint {
+  category: string
+  description: string
+}
+
+export interface Insight {
+  summary: string
+  pain_points: PainPoint[]
+  feature_requests: string[]
+  competitors: string[]
+  customer_sentiment: string
+  customer_type: string
+  action_items: string[]
+  notable_quotes: string[]
+  created_at: string
+  updated_at: string
+}
+
 export interface InterviewDetail {
   id: string
   title: string
   status: InterviewStatusValue
-  input_type: "audio" | "notes"
+  input_type: InputTypeValue
   failure_reason: string | null
   transcript: Transcript | null
+  insights: Insight | null
   created_at: string
   updated_at: string
+}
+
+export interface InterviewListItem {
+  id: string
+  title: string
+  status: InterviewStatusValue
+  input_type: InputTypeValue
+  created_at: string
+  sentiment: string | null
+  customer_type: string | null
+  summary_preview: string | null
+  pain_point_categories: string[]
+  competitors: string[]
+}
+
+export interface InterviewListResponse {
+  items: InterviewListItem[]
+  total: number
+  page: number
+  page_size: number
+  total_pages: number
+}
+
+export interface InterviewListFilters {
+  page?: number
+  page_size?: number
+  status?: InterviewStatusValue
+  sentiment?: Sentiment
+  pain_point_category?: PainPointCategory
+  customer_type?: string
+  date_from?: string
+  date_to?: string
+  q?: string
 }
 
 async function parseOrThrow<T>(response: Response, action: string): Promise<T> {
@@ -96,4 +172,34 @@ export async function retryInterview(
     { method: "POST" }
   )
   return parseOrThrow(response, "Retrying interview")
+}
+
+export async function getSimilarInterviews(
+  interviewId: string,
+  limit = 5
+): Promise<SemanticSearchResult[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/interviews/${interviewId}/similar?limit=${limit}`
+  )
+  const data = await parseOrThrow<{ results: SemanticSearchResult[] }>(
+    response,
+    "Fetching similar interviews"
+  )
+  return data.results
+}
+
+export async function listInterviews(
+  filters: InterviewListFilters
+): Promise<InterviewListResponse> {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value))
+    }
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/interviews?${params.toString()}`
+  )
+  return parseOrThrow(response, "Fetching interviews")
 }

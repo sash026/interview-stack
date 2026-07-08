@@ -1,18 +1,22 @@
 import logging
 import uuid
+from datetime import date
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.models.insight import CustomerSentiment, PainPointCategory
 from app.models.interview import InputType, Interview, InterviewStatus
 from app.schemas.embedding import SimilarInterviewsResponse
 from app.schemas.insight import InsightResponse, PainPointResponse
 from app.schemas.interview import (
     InterviewDetailResponse,
+    InterviewListItemResponse,
+    InterviewListResponse,
     InterviewStatusResponse,
     InterviewUploadResponse,
     TranscriptResponse,
@@ -123,6 +127,65 @@ async def upload_interview(
         status=interview.status.value,
         has_audio=has_audio,
         has_notes=has_notes,
+    )
+
+
+def _to_list_item(interview: Interview) -> InterviewListItemResponse:
+    insight = interview.insight
+    summary_preview = None
+    if insight is not None and insight.summary:
+        summary_preview = (
+            insight.summary[:160] + "..." if len(insight.summary) > 160 else insight.summary
+        )
+    pain_point_categories = (
+        sorted({pp.category.value for pp in insight.pain_points}) if insight is not None else []
+    )
+    return InterviewListItemResponse(
+        id=str(interview.id),
+        title=interview.title,
+        status=interview.status.value,
+        input_type=interview.input_type.value,
+        created_at=interview.created_at,
+        sentiment=insight.customer_sentiment.value if insight is not None else None,
+        customer_type=insight.customer_type if insight is not None else None,
+        summary_preview=summary_preview,
+        pain_point_categories=pain_point_categories,
+        competitors=insight.competitors if insight is not None else [],
+    )
+
+
+@router.get("", response_model=InterviewListResponse)
+async def list_interviews(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status_filter: InterviewStatus | None = Query(default=None, alias="status"),
+    sentiment: CustomerSentiment | None = None,
+    pain_point_category: PainPointCategory | None = None,
+    customer_type: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    q: str | None = None,
+    db: Session = Depends(get_db),
+) -> InterviewListResponse:
+    items, total = interview_service.list_interviews(
+        db,
+        page=page,
+        page_size=page_size,
+        status=status_filter,
+        sentiment=sentiment,
+        pain_point_category=pain_point_category,
+        customer_type=customer_type,
+        date_from=date_from,
+        date_to=date_to,
+        q=q,
+    )
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    return InterviewListResponse(
+        items=[_to_list_item(interview) for interview in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
     )
 
 

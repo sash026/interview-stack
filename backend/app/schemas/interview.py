@@ -35,3 +35,24 @@ class InterviewDetailResponse(BaseModel):
     insights: InsightResponse | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class InterviewListItemResponse(BaseModel):
+    id: str
+    title: str
+    status: str
+    input_type: str
+    created_at: datetime
+    sentiment: str | None = None
+    customer_type: str | None = None
+    summary_preview: str | None = None
+    pain_point_categories: list[str] = []
+    competitors: list[str] = []
+
+
+class InterviewListResponse(BaseModel):
+    items: list[InterviewListItemResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
