@@ -13,7 +13,7 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: interview-stack-redis
           property: connectionString
       - key: OPENAI_API_KEY
@@ -33,18 +33,19 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: interview-stack-redis
           property: connectionString
       - key: OPENAI_API_KEY
         sync: false
 
+  # 3. Key Value (Redis-Compatible) Broker
+  - type: keyvalue
+    name: interview-stack-redis
+    ipAllowList: [] # keeps access internal to Render's private network
+
 databases:
-  # 3. PostgreSQL Database with pgvector
+  # 4. PostgreSQL Database
   - name: interview-stack-db
     databaseName: interview_stack
     user: postgres
-
-  # 4. Redis Broker
-  - type: redis
-    name: interview-stack-redis
