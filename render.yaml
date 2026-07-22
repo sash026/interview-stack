@@ -42,10 +42,10 @@ services:
   # 3. Key Value (Redis-Compatible) Broker
   - type: keyvalue
     name: interview-stack-redis
-    ipAllowList: [] # keeps access internal to Render's private network
+    ipAllowList: []
 
 databases:
   # 4. PostgreSQL Database
   - name: interview-stack-db
-    databaseName: interview_stack
-    user: postgres
+    databaseName: interview_stack_db
+    user: interview_stack_user
